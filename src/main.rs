@@ -1,3 +1,4 @@
+use std::fs;
 use std::net::SocketAddr;
 
 use http_body_util::Empty;
@@ -18,7 +19,13 @@ async fn handle_request(
     req: Request<hyper::body::Incoming>,
 ) -> Result<Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
     if req.method() == Method::GET {
-        return Ok(Response::new(full(req.uri().path().to_owned())));
+        let uri_path = req.uri().path()[1..].to_string();
+        let paths = fs::read_dir("./endpoints").unwrap();
+        for path in paths {
+            if uri_path == path.unwrap().file_name().to_str().unwrap() {
+                return Ok(Response::new(full(uri_path)));
+            }
+        }
     }
     let mut not_found = Response::new(empty());
     *not_found.status_mut() = StatusCode::NOT_FOUND;
@@ -40,6 +47,9 @@ fn full<T: Into<Bytes>>(chunk: T) -> BoxBody<Bytes, hyper::Error> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // Initialize the endpoints directory if it hasn't already
+    fs::create_dir_all("./endpoints").unwrap();
+
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
 
     // We create a TcpListener and bind it to 127.0.0.1:3000
