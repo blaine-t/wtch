@@ -1,5 +1,7 @@
 use std::fs;
+use std::fs::DirEntry;
 use std::net::SocketAddr;
+use std::process::Command;
 
 use http_body_util::Empty;
 use http_body_util::Full;
@@ -15,6 +17,21 @@ use hyper_util::rt::TokioIo;
 
 use tokio::net::TcpListener;
 
+fn run_command(path: &DirEntry) -> String {
+    let mut command = Command::new(
+        fs::read_dir(path.path())
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .path()
+            .to_owned(),
+    );
+    let output = command.output().unwrap();
+
+    String::from_utf8(output.stdout).unwrap()
+}
+
 async fn handle_request(
     req: Request<hyper::body::Incoming>,
 ) -> Result<Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
@@ -22,8 +39,9 @@ async fn handle_request(
         let uri_path = req.uri().path()[1..].to_string();
         let paths = fs::read_dir("./endpoints").unwrap();
         for path in paths {
-            if uri_path == path.unwrap().file_name().to_str().unwrap() {
-                return Ok(Response::new(full(uri_path)));
+            let path = path.unwrap();
+            if uri_path == path.file_name().to_str().unwrap() {
+                return Ok(Response::new(full(run_command(&path))));
             }
         }
     }
